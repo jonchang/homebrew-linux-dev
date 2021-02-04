@@ -82,9 +82,6 @@ module Homebrew
           # Skip top part of merge conflict.
           next if CONFLICT_START.match?(line) .. CONFLICT_BOUNDARY.match?(line)
 
-          # Remove `cellar :any`, etc. lines.
-          next if line.include? "cellar"
-
           # Remove trailing bit of merge conflict.
           next if CONFLICT_END.match?(line)
         end
