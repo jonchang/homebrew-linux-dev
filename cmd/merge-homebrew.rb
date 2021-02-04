@@ -79,11 +79,11 @@ module Homebrew
         # Now inside a bottle block.
         if CONFLICT_START.match?(line) .. CONFLICT_END.match?(line)
           # Now inside a merge conflict.
-          # Skip top part of merge conflict.
-          next if CONFLICT_START.match?(line) .. CONFLICT_BOUNDARY.match?(line)
+          # Skip beginning of merge conflict.
+          next if CONFLICT_START.match?(line)
 
-          # Remove trailing bit of merge conflict.
-          next if CONFLICT_END.match?(line)
+          # Skip bottom part of merge conflict.
+          next if CONFLICT_BOUNDARY.match?(line) .. CONFLICT_END.match?(line)
         end
       end
       line
@@ -93,18 +93,28 @@ module Homebrew
     File.atomic_write(file) { |f| f.write(new_contents) }
   end
 
+  def conflicts?(file)
+    contents = File.read(file)
+    contents.match?(CONFLICT_START) || contents.match?(CONFLICT_BOUNDARY) || contents.match?(CONFLICT_END)
+  end
+
   def resolve_conflicts(args:)
     conflicts = Utils.popen_read(git, "diff", "--name-only", "--diff-filter=U").split
     return conflicts if conflicts.empty?
 
     conflicts.each { |f| fix_bottle_merge_conflicts! f }
 
-    oh1 "Conflicts"
-    puts conflicts.join(" ")
+    unfixed, fixed = conflicts.partition { |f| conflicts? f }
+
+    oh1 "Fixed conflicts"
+    puts fixed.join(" ")
+
+    oh1 "Unfixed conflicts"
+    puts unfixed.join(" ")
     if mergetool?
       safe_system "git", "mergetool"
     else
-      safe_system(*editor, *conflicts)
+      safe_system(*editor, *unfixed)
     end
     system HOMEBREW_BREW_FILE, "style", "--fix", *conflicts unless args.skip_style?
     safe_system git, "diff", "--check"
